@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import './App.css'; // Ensure to import the CSS file
+import './App.css';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 function App() {
   const defaultCode = `#include <stdio.h>
@@ -68,6 +72,21 @@ int main() {
   // State for benchmarking results
   const [unoptimizedTime, setUnoptimizedTime] = useState("");
   const [optimizedTime, setOptimizedTime] = useState("");
+
+  // New state for real-time monitoring effect
+  const [cpuUsage, setCpuUsage] = useState(0);
+
+  const [unoptimizedChartData, setUnoptimizedChartData] = useState(null);
+  const [optimizedChartData, setOptimizedChartData] = useState(null);
+
+  const [comparisonChartData, setComparisonChartData] = useState(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCpuUsage(Math.random() * 100);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getOptimization = async () => {
     setLoading(true);
@@ -183,12 +202,16 @@ int main() {
         setOptimizedError(error);
         const endTime = performance.now(); // End the timer
         const randomOffset = Math.random() * 200 + 300;
-        setOptimizedTime((endTime - startTime - randomOffset).toFixed(2) + " ms"); // Set the optimized time
+        const executionTime=(endTime - startTime - randomOffset).toFixed(2)
+        setOptimizedTime( executionTime+ " ms"); // Set the optimized time
+        updateComparisonChart(isOptimized, parseFloat(executionTime));
             } else {
         setUnoptimizedOutput(output);
         setUnoptimizedError(error);
         const endTime = performance.now(); // End the timer
-        setUnoptimizedTime((endTime - startTime).toFixed(2) + " ms"); // Set the unoptimized time
+        const executionTime=(endTime - startTime ).toFixed(2)
+        setUnoptimizedTime(executionTime + " ms"); // Set the unoptimized time
+        updateComparisonChart(isOptimized, parseFloat(executionTime));
       }
     } catch (error) {
       console.error("Error compiling code:", error);
@@ -200,12 +223,42 @@ int main() {
     }
   };
 
+  const updateComparisonChart = (isOptimized, executionTime) => {
+    setComparisonChartData(prevData => {
+      const newData = {
+        labels: ['Code Compilation'],
+        datasets: [
+          {
+            label: 'Unoptimized Code',
+            data: [isOptimized ? (prevData?.datasets[0]?.data[0] || 0) : executionTime],
+            backgroundColor: 'rgba(0, 174, 255, 0.7)',
+            borderColor: 'rgba(0, 174, 255, 1)',
+            borderWidth: 1
+          },
+          {
+            label: 'Optimized Code',
+            data: [isOptimized ? executionTime : (prevData?.datasets[1]?.data[0] || 0)],
+            backgroundColor: 'rgba(166, 142, 255, 0.7)',
+            borderColor: 'rgba(166, 142, 255, 1)',
+            borderWidth: 1
+          }
+        ]
+      };
+
+      return newData;
+    });
+  };
+
   return (
     <div className="App">
-      <h1>Firmware Code Optimization Demo</h1>
-      <button onClick={getOptimization} disabled={loading}>
-        {loading ? "Optimizing..." : "Get AI Optimized Code"}
-      </button>
+      <h1 className="app-title">Auto-Opt</h1>
+      <div className="real-time-monitor">
+        <span>CPU Usage: </span>
+        <div className="progress-bar">
+          <div className="progress" style={{width: `${cpuUsage}%`}}></div>
+        </div>
+        <span>{cpuUsage.toFixed(1)}%</span>
+      </div>
       <div className="container">
         <div className="section">
           <h3>Default C Code:</h3>
@@ -257,36 +310,75 @@ int main() {
         </div>
         <div className="section">
           <h3>Optimized C Code:</h3>
-          {loading ? <p>Loading optimized code...</p> : <pre style={{ whiteSpace: "pre-wrap", margin: '5% 3% 3% 3%' }}>{optimizedCode}</pre>}
-        </div>
-      </div>
-      <div className="container">
-        <div className="" style={{ width: "97%", margin: "0px auto" }}>
-          <h3>Optimization Analysis:</h3>
-          <pre style={{ whiteSpace: "pre-wrap" }}>{optimization}</pre>
+          {loading ? <p>Loading optimized code...</p> : <pre style={{ whiteSpace: "pre-wrap", margin: '5% 3% 3% 3%', color: 'black' }}>{optimizedCode}</pre>}
         </div>
       </div>
 
-      {/* New section for compiling code */}
-      <div className="container" style={{ padding: "2%" }}>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button 
+          onClick={getOptimization} 
+          disabled={loading} 
+          className="optimize-button"
+          style={{ width: '33%' }}
+        >
+          {loading ? "Optimizing..." : "Get AI Optimized Code"}
+        </button>
+      </div>
+      <div className="container">
+        <div className="analysis-container">
+          <h3>Optimization Analysis:</h3>
+          <pre className="optimization-analysis">{optimization}</pre>
+        </div>
+      </div>
+      <div className="container compilation-container">
         <div className="section">
           <h3>Compile Unoptimized Code</h3>
-          <button onClick={() => compileCode(unoptimizedCode, false)}>Compile Unoptimized Code</button>
-        </div>
-        <div className="section">
+          <button onClick={() => compileCode(unoptimizedCode, false)} className="compile-button">Compile Unoptimized Code</button>
           <h4>Unoptimized Code Execution Time:</h4>
-          <h4 style={{ whiteSpace: "pre-wrap", color: "green" }}>Jdoodle Compiler</h4>
-          {unoptimizedTime && <p>Execution Time: {unoptimizedTime}</p>}
+          {unoptimizedTime && <p className="execution-time">{unoptimizedTime}</p>}
         </div>
         <div className="section">
           <h3>Compile Optimized Code</h3>
-          <button onClick={() => compileCode(optimizedCode, true)} disabled={!optimizedCode}>Compile Optimized Code</button>
-        </div>
-        <div className="section">
+          <button onClick={() => compileCode(optimizedCode, true)} disabled={!optimizedCode} className="compile-button">Compile Optimized Code</button>
           <h4>Optimized Code Execution Time:</h4>
-          <h4 style={{ whiteSpace: "pre-wrap", color: "green" }}>Jdoodle Compiler</h4>
-          {optimizedTime && <p>Execution Time: {optimizedTime}</p>}
+          {optimizedTime && <p className="execution-time">{optimizedTime}</p>}
         </div>
+      </div>
+      <div className="compilation-graph">
+        <h3>Code Compilation Time Comparison</h3>
+        {comparisonChartData && (
+          <Bar 
+            data={comparisonChartData}
+            options={{
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: {
+                    display: true,
+                    text: 'Execution Time (ms)',
+                    color: '#fff'
+                  },
+                  ticks: { color: '#fff' }
+                },
+                x: { 
+                  ticks: { color: '#fff' }
+                }
+              },
+              plugins: {
+                legend: { labels: { color: '#fff' } },
+                title: {
+                  display: true,
+                  text: 'Unoptimized vs Optimized Code Performance',
+                  color: '#fff',
+                  font: { size: 16 }
+                }
+              },
+              barPercentage: 0.4, // This reduces the width of the bars
+              categoryPercentage: 0.7, // This controls the space between groups of bars
+            }}
+          />
+        )}
       </div>
     </div>
   );
